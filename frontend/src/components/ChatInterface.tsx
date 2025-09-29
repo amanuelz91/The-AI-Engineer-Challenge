@@ -252,7 +252,7 @@ export function ChatInterface() {
       };
 
       const result = await ChatApiService.generateQuestions(request);
-      
+
       // Add questions as a chat message
       const questionsMessage: Message = {
         id: generateMessageId(),
@@ -284,11 +284,12 @@ export function ChatInterface() {
   };
 
   const handleRegenerateQuestions = (message: Message) => {
-    if (message.role === 'questions' && message.topic) {
+    if (message.role === "questions" && message.topic) {
       const config: QuestionConfig = {
         topic: message.topic,
         questionCount: message.questions?.length || 3,
-        difficulty: (message.difficulty as "easy" | "medium" | "hard") || "medium",
+        difficulty:
+          (message.difficulty as "easy" | "medium" | "hard") || "medium",
         questionTypes: message.question_types || ["factual", "analytical"],
       };
       handleGenerateQuestions(config);
@@ -422,10 +423,14 @@ export function ChatInterface() {
           ) : (
             <div className="max-w-4xl mx-auto">
               {chatState.messages.map((message) => (
-                <ChatMessage 
-                  key={message.id} 
+                <ChatMessage
+                  key={message.id}
                   message={message}
-                  onRegenerateQuestions={message.role === 'questions' ? () => handleRegenerateQuestions(message) : undefined}
+                  onRegenerateQuestions={
+                    message.role === "questions"
+                      ? () => handleRegenerateQuestions(message)
+                      : undefined
+                  }
                   isRegenerating={isGeneratingQuestions}
                 />
               ))}
