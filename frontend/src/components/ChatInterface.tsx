@@ -5,12 +5,13 @@
  */
 
 import { useState, useRef, useEffect } from "react";
-import { Message, ChatState } from "@/types/chat";
+import { Message, ChatState, UploadedPDF, PDFListItem } from "@/types/chat";
 import { ChatMessage } from "./ChatMessage";
 import { TypingIndicator } from "./TypingIndicator";
+import { PDFUpload } from "./PDFUpload";
 import { ChatApiService } from "@/services/chatApi";
 import { generateMessageId, storage } from "@/lib/utils";
-import { Send, Trash2, Settings } from "lucide-react";
+import { Send, Trash2, Settings, FileText } from "lucide-react";
 
 export function ChatInterface() {
   const [chatState, setChatState] = useState<ChatState>({
@@ -25,6 +26,9 @@ export function ChatInterface() {
     "You are a helpful AI assistant. Please provide clear, concise, and accurate responses."
   );
   const [showSettings, setShowSettings] = useState(false);
+  const [showPDFUpload, setShowPDFUpload] = useState(false);
+  const [uploadedPDFs, setUploadedPDFs] = useState<PDFListItem[]>([]);
+  const [selectedPDFId, setSelectedPDFId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -47,7 +51,19 @@ export function ChatInterface() {
     if (savedApiKey) {
       setApiKey(savedApiKey);
     }
+
+    // Load uploaded PDFs list
+    loadUploadedPDFs();
   }, []);
+
+  const loadUploadedPDFs = async () => {
+    try {
+      const pdfs = await ChatApiService.listPDFs();
+      setUploadedPDFs(pdfs);
+    } catch (error) {
+      console.error("Failed to load PDFs:", error);
+    }
+  };
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -114,6 +130,7 @@ export function ChatInterface() {
           user_message: userMessage.content,
           api_key: apiKey,
           model: "gpt-4o-mini",
+          pdf_id: selectedPDFId || undefined,
         },
         // onChunk
         (chunk: string) => {
@@ -188,14 +205,46 @@ export function ChatInterface() {
     setShowSettings(false);
   };
 
+  const handlePDFUploaded = (pdf: UploadedPDF) => {
+    // Add the new PDF to the list
+    setUploadedPDFs(prev => [...prev, {
+      pdf_id: pdf.pdf_id,
+      chunks_count: pdf.chunks_count
+    }]);
+    
+    // Automatically select the newly uploaded PDF
+    setSelectedPDFId(pdf.pdf_id);
+    
+    // Show success message
+    alert(`PDF "${pdf.filename}" uploaded successfully with ${pdf.chunks_count} chunks indexed!`);
+  };
+
+  const handlePDFDeleted = (pdfId: string) => {
+    setUploadedPDFs(prev => prev.filter(pdf => pdf.pdf_id !== pdfId));
+    if (selectedPDFId === pdfId) {
+      setSelectedPDFId(null);
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
         <h1 className="text-xl font-semibold text-gray-800">
-          AI Chat Assistant
+          RAG Chat Assistant
         </h1>
         <div className="flex space-x-2">
+          <button
+            onClick={() => setShowPDFUpload(!showPDFUpload)}
+            className={`p-2 rounded-lg transition-colors ${
+              showPDFUpload 
+                ? 'text-blue-600 bg-blue-50' 
+                : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+            }`}
+            title="Upload PDF"
+          >
+            <FileText size={20} />
+          </button>
           <button
             onClick={() => setShowSettings(!showSettings)}
             className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
@@ -252,19 +301,44 @@ export function ChatInterface() {
         </div>
       )}
 
+      {/* PDF Upload Panel */}
+      {showPDFUpload && (
+        <div className="bg-blue-50 border-b border-blue-200 px-6 py-4">
+          <h3 className="text-sm font-medium text-blue-800 mb-3">PDF Upload & Management</h3>
+          <PDFUpload
+            apiKey={apiKey}
+            onPDFUploaded={handlePDFUploaded}
+            uploadedPDFs={uploadedPDFs}
+            selectedPDFId={selectedPDFId}
+            onPDFSelected={setSelectedPDFId}
+            onPDFDeleted={handlePDFDeleted}
+          />
+        </div>
+      )}
+
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
         {chatState.messages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-gray-500">
             <div className="text-center">
-              <div className="text-4xl mb-4">🤖</div>
-              <p className="text-lg font-medium mb-2">Welcome to AI Chat!</p>
-              <p className="text-sm">
-                Start a conversation by typing a message below.
+              <div className="text-4xl mb-4">📚</div>
+              <p className="text-lg font-medium mb-2">Welcome to RAG Chat!</p>
+              <p className="text-sm mb-4">
+                Upload a PDF and chat with its contents using AI.
               </p>
+              <div className="space-y-2 text-xs text-gray-600">
+                <p>1. Set your OpenAI API key in settings ⚙️</p>
+                <p>2. Upload a PDF using the 📄 button</p>
+                <p>3. Start asking questions about your document!</p>
+              </div>
               {!apiKey && (
-                <p className="text-xs text-red-500 mt-2">
-                  Don&apos;t forget to set your OpenAI API key in settings ⚙️
+                <p className="text-xs text-red-500 mt-4">
+                  ⚠️ Please set your OpenAI API key first
+                </p>
+              )}
+              {selectedPDFId && (
+                <p className="text-xs text-blue-600 mt-2">
+                  ✓ PDF selected - ready to chat!
                 </p>
               )}
             </div>
