@@ -133,7 +133,7 @@ async def chat(request: ChatRequest):
                 for i, chunk in enumerate(relevant_chunks, 1):
                     context_message += f"Context {i}:\n{chunk}\n\n"
                 
-                context_message += "Please answer the user's question using ONLY the information provided in the context above. If the answer cannot be found in the context, please say so."
+                context_message += "Please answer the user's question using ONLY the information provided in the context above. If the answer cannot be found in the context, please say so. If the context is empty, do not try to return a response leveraging generalized information that you may have access to or insight about."
                 
                 # Update the system message to include context
                 messages[0]["content"] = request.developer_message + "\n\n" + context_message
