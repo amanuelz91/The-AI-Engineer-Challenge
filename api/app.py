@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from openai import OpenAI
 import os
 import tempfile
+import random
 from typing import Optional, Dict, List
 
 # Import aimakerspace modules for RAG functionality
@@ -296,18 +297,46 @@ No specific document context provided. Generate general questions about "{reques
                 if not (0 <= q["correct_answer"] <= 3):
                     raise ValueError(f"Question {i+1} correct_answer must be 0-3")
             
+            # Shuffle answer choices to prevent bias
+            for question in questions_data:
+                original_correct_answer = question["correct_answer"]
+                choices = question["choices"].copy()
+                
+                # Create a list of indices and shuffle them
+                indices = list(range(4))
+                random.shuffle(indices)
+                
+                # Reorder choices according to shuffled indices
+                shuffled_choices = [choices[i] for i in indices]
+                
+                # Find where the original correct answer ended up
+                new_correct_answer = indices.index(original_correct_answer)
+                
+                # Update the question with shuffled choices and new correct answer index
+                question["choices"] = shuffled_choices
+                question["correct_answer"] = new_correct_answer
+            
         except (json.JSONDecodeError, ValueError) as e:
-            # Fallback: create a simple multiple choice question
+            # Fallback: create a simple multiple choice question with randomized answer
             print(f"Failed to parse JSON response: {e}")
+            fallback_choices = [
+                "It involves criminal penalties",
+                "It is a civil matter only", 
+                "It has no legal implications",
+                "It depends on the specific circumstances"
+            ]
+            correct_choice = "It depends on the specific circumstances"
+            
+            # Shuffle the choices
+            random.shuffle(fallback_choices)
+            
+            # Find the new position of the correct answer
+            new_correct_index = fallback_choices.index(correct_choice)
+            
             questions_data = [{
                 "question": f"What are the key legal aspects of {request.topic}?",
-                "choices": [
-                    "It involves criminal penalties",
-                    "It is a civil matter only", 
-                    "It has no legal implications",
-                    "It depends on the specific circumstances"
-                ],
-                "correct_answer": 3,
+                "choices": fallback_choices,
+                "correct_answer": new_correct_index,
                 "explanation": "Legal matters often depend on specific circumstances and context."
             }]
         
