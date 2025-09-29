@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from openai import OpenAI
 import os
 import tempfile
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 # Import aimakerspace modules for RAG functionality
 import sys
@@ -41,6 +41,16 @@ class ChatRequest(BaseModel):
     model: Optional[str] = "gpt-4o-mini"  # Optional model selection with default
     api_key: str          # OpenAI API key for authentication
     pdf_id: Optional[str] = None  # Optional PDF ID for RAG context
+
+# Define the data model for question generation requests
+class QuestionGenerationRequest(BaseModel):
+    topic: str  # Selected topic for question generation
+    pdf_id: Optional[str] = None  # Optional PDF ID for context-aware questions
+    question_count: Optional[int] = 1  # Number of questions to generate
+    difficulty: Optional[str] = "medium"  # Difficulty level: easy, medium, hard
+    question_types: Optional[List[str]] = ["factual", "analytical"]  # Types of questions
+    api_key: str  # OpenAI API key for authentication
+    model: Optional[str] = "gpt-4o-mini"  # Model to use for generation
 
 # PDF upload endpoint
 @app.post("/api/upload-pdf")
@@ -93,7 +103,7 @@ async def upload_pdf(file: UploadFile = File(...), api_key: str = Form(...)):
             
     except Exception as e:
         # Handle any errors that occur during processing
-        raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)} chunks_count: {len(chunks)}") from e
 
 # Define the main chat endpoint that handles POST requests
 @app.post("/api/chat")
@@ -172,6 +182,147 @@ async def delete_pdf(pdf_id: str):
         return {"message": "PDF deleted successfully"}
     else:
         raise HTTPException(status_code=404, detail="PDF not found")
+
+# Generate random questions based on topic
+@app.post("/api/generate-questions")
+async def generate_questions(request: QuestionGenerationRequest):
+    """Generate random questions based on selected topic and optional PDF context"""
+    try:
+        # Initialize OpenAI client with the provided API key
+        os.environ["OPENAI_API_KEY"] = request.api_key
+        client = OpenAI(api_key=request.api_key)
+        
+        # Build the context for question generation
+        context_chunks = []
+        if request.pdf_id and request.pdf_id in vector_databases:
+            vector_db = vector_databases[request.pdf_id]
+            
+            # Search for relevant chunks based on the topic
+            try:
+                relevant_chunks = vector_db.search_by_text(
+                    request.topic, 
+                    k=5,  # Get top 5 most relevant chunks
+                    return_as_text=True
+                )
+                context_chunks = relevant_chunks
+            except Exception as e:
+                print(f"Error searching vector database: {e}")
+                # Continue without context if search fails
+        
+        # Build the prompt for question generation
+        difficulty_instructions = {
+            "easy": "Generate simple, straightforward questions that test basic understanding and recall.",
+            "medium": "Generate moderately complex questions that require some analysis and understanding of relationships.",
+            "hard": "Generate challenging questions that require critical thinking, synthesis, and deep analysis."
+        }
+        
+        question_type_instructions = {
+            "factual": "Ask direct questions about facts, definitions, and specific information.",
+            "analytical": "Ask questions that require analysis, comparison, and interpretation.",
+            "application": "Ask questions about how concepts apply to real-world scenarios.",
+            "synthesis": "Ask questions that require combining multiple concepts or ideas."
+        }
+        
+        # Create the system prompt
+        system_prompt = f"""You are an expert legal educator creating {request.difficulty} level MULTIPLE CHOICE questions about "{request.topic}".
+
+DIFFICULTY LEVEL: {difficulty_instructions.get(request.difficulty, difficulty_instructions["medium"])}
+
+QUESTION TYPES TO INCLUDE: {", ".join([question_type_instructions.get(qt, qt) for qt in request.question_types])}
+
+INSTRUCTIONS:
+1. Generate exactly {request.question_count} multiple choice question(s) about "{request.topic}"
+2. Each question should be clear, specific, and educational
+3. Vary the question types as requested: {", ".join(request.question_types)}
+4. Each question must have exactly 4 answer choices (A, B, C, D)
+5. Make questions that would help someone learn about this legal topic
+6. Return questions in this EXACT JSON format:
+
+[
+  {{
+    "question": "What is the definition of...",
+    "choices": ["Choice A", "Choice B", "Choice C", "Choice D"],
+    "correct_answer": 0,
+    "explanation": "Brief explanation of why this is correct"
+  }}
+]
+
+IMPORTANT: Return ONLY valid JSON array. No additional text or formatting.
+
+"""
+
+        # Add context if available
+        if context_chunks:
+            context_text = "\n\n".join([f"Context {i+1}: {chunk}" for i, chunk in enumerate(context_chunks)])
+            system_prompt += f"""
+RELEVANT CONTEXT FROM UPLOADED DOCUMENT:
+{context_text}
+
+Use this context to create more specific and relevant questions about "{request.topic}".
+"""
+        else:
+            system_prompt += f"""
+No specific document context provided. Generate general questions about "{request.topic}" based on your knowledge of legal concepts.
+"""
+
+        # Generate questions using OpenAI
+        response = client.chat.completions.create(
+            model=request.model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Generate {request.question_count} multiple choice questions about '{request.topic}' with {request.difficulty} difficulty level."}
+            ],
+            temperature=0.7,  # Balanced creativity and consistency
+            max_tokens=2000
+        )
+        
+        # Parse the response to extract questions
+        questions_text = response.choices[0].message.content.strip()
+        
+        try:
+            # Try to parse as JSON
+            import json
+            questions_data = json.loads(questions_text)
+            
+            # Validate the structure
+            if not isinstance(questions_data, list):
+                raise ValueError("Response is not a JSON array")
+                
+            for i, q in enumerate(questions_data):
+                if not all(key in q for key in ["question", "choices", "correct_answer", "explanation"]):
+                    raise ValueError(f"Question {i+1} missing required fields")
+                if not isinstance(q["choices"], list) or len(q["choices"]) != 4:
+                    raise ValueError(f"Question {i+1} must have exactly 4 choices")
+                if not (0 <= q["correct_answer"] <= 3):
+                    raise ValueError(f"Question {i+1} correct_answer must be 0-3")
+            
+        except (json.JSONDecodeError, ValueError) as e:
+            # Fallback: create a simple multiple choice question
+            print(f"Failed to parse JSON response: {e}")
+            questions_data = [{
+                "question": f"What are the key legal aspects of {request.topic}?",
+                "choices": [
+                    "It involves criminal penalties",
+                    "It is a civil matter only", 
+                    "It has no legal implications",
+                    "It depends on the specific circumstances"
+                ],
+                "correct_answer": 3,
+                "explanation": "Legal matters often depend on specific circumstances and context."
+            }]
+        
+        return {
+            "topic": request.topic,
+            "questions": questions_data[:request.question_count],
+            "difficulty": request.difficulty,
+            "question_types": request.question_types,
+            "has_context": len(context_chunks) > 0,
+            "context_chunks_used": len(context_chunks)
+        }
+        
+    except Exception as e:
+        # Handle any errors that occur during processing
+        raise HTTPException(status_code=500, detail=f"Error generating questions: {str(e)}") from e
 
 # Define a health check endpoint to verify API status
 @app.get("/api/health")

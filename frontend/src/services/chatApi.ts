@@ -4,6 +4,32 @@
 
 import { ChatRequest, UploadedPDF, PDFListItem } from "@/types/chat";
 
+export interface QuestionGenerationRequest {
+  topic: string;
+  pdf_id?: string;
+  question_count?: number;
+  difficulty?: "easy" | "medium" | "hard";
+  question_types?: string[];
+  api_key: string;
+  model?: string;
+}
+
+export interface MultipleChoiceQuestion {
+  question: string;
+  choices: string[];
+  correct_answer: number;
+  explanation: string;
+}
+
+export interface GeneratedQuestions {
+  topic: string;
+  questions: MultipleChoiceQuestion[];
+  difficulty: string;
+  question_types: string[];
+  has_context: boolean;
+  context_chunks_used: number;
+}
+
 // const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const API_BASE_URL =
   process.env.NODE_ENV === "production" ? "/api" : "http://localhost:8000/api";
@@ -76,17 +102,19 @@ export class ChatApiService {
    */
   static async uploadPDF(file: File, apiKey: string): Promise<UploadedPDF> {
     const formData = new FormData();
-    formData.append('file', file);
-    formData.append('api_key', apiKey);
+    formData.append("file", file);
+    formData.append("api_key", apiKey);
 
     const response = await fetch(`${API_BASE_URL}/upload-pdf`, {
-      method: 'POST',
+      method: "POST",
       body: formData,
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      throw new Error(
+        errorData.detail || `HTTP error! status: ${response.status}`
+      );
     }
 
     return response.json();
@@ -97,7 +125,7 @@ export class ChatApiService {
    */
   static async listPDFs(): Promise<PDFListItem[]> {
     const response = await fetch(`${API_BASE_URL}/pdfs`);
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -112,13 +140,40 @@ export class ChatApiService {
    */
   static async deletePDF(pdfId: string): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/pdfs/${pdfId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      throw new Error(
+        errorData.detail || `HTTP error! status: ${response.status}`
+      );
     }
+  }
+
+  /**
+   * Generate questions based on a topic
+   * @param request - The question generation request payload
+   */
+  static async generateQuestions(
+    request: QuestionGenerationRequest
+  ): Promise<GeneratedQuestions> {
+    const response = await fetch(`${API_BASE_URL}/generate-questions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.detail || `HTTP error! status: ${response.status}`
+      );
+    }
+
+    return response.json();
   }
 
   /**
