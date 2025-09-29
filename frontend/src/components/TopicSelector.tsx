@@ -22,16 +22,25 @@ export interface QuestionConfig {
   pdfId?: string;
 }
 
-export function TopicSelector({ onTopicSelect, onGenerateQuestions, isGenerating = false }: TopicSelectorProps) {
+export function TopicSelector({
+  onTopicSelect,
+  onGenerateQuestions,
+  isGenerating = false,
+}: TopicSelectorProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTopic, setSelectedTopic] = useState("");
   const [showConfig, setShowConfig] = useState(false);
   const [questionCount, setQuestionCount] = useState(3);
-  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
-  const [questionTypes, setQuestionTypes] = useState<string[]>(["factual", "analytical"]);
+  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">(
+    "medium"
+  );
+  const [questionTypes, setQuestionTypes] = useState<string[]>([
+    "factual",
+    "analytical",
+  ]);
 
   // Filter topics based on search term
-  const filteredTopics = topics.filter(topic =>
+  const filteredTopics = topics.filter((topic) =>
     topic.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -126,7 +135,9 @@ export function TopicSelector({ onTopicSelect, onGenerateQuestions, isGenerating
             <div className="space-y-3 bg-gray-50 p-3 rounded-md">
               <div className="flex items-center gap-2">
                 <Settings2 className="h-3 w-3 text-gray-600" />
-                <h4 className="text-xs font-medium text-gray-800">Configuration</h4>
+                <h4 className="text-xs font-medium text-gray-800">
+                  Configuration
+                </h4>
               </div>
 
               {/* Question Count */}
@@ -154,7 +165,9 @@ export function TopicSelector({ onTopicSelect, onGenerateQuestions, isGenerating
                   {["easy", "medium", "hard"].map((level) => (
                     <button
                       key={level}
-                      onClick={() => setDifficulty(level as "easy" | "medium" | "hard")}
+                      onClick={() =>
+                        setDifficulty(level as "easy" | "medium" | "hard")
+                      }
                       className={`px-2 py-1 rounded text-xs capitalize flex-1 ${
                         difficulty === level
                           ? "bg-blue-600 text-white"
@@ -201,10 +214,17 @@ export function TopicSelector({ onTopicSelect, onGenerateQuestions, isGenerating
           <div className="text-sm text-blue-800">
             <p className="font-medium mb-1">How it works:</p>
             <ul className="text-xs space-y-1 text-blue-700">
-              <li>• Search and select a legal topic from {topics.length.toLocaleString()} available topics</li>
+              <li>
+                • Search and select a legal topic from{" "}
+                {topics.length.toLocaleString()} available topics
+              </li>
               <li>• Configure question difficulty and types</li>
-              <li>• Questions will be generated using AI based on your selection</li>
-              <li>• If you have uploaded PDFs, questions will use that context</li>
+              <li>
+                • Questions will be generated using AI based on your selection
+              </li>
+              <li>
+                • If you have uploaded PDFs, questions will use that context
+              </li>
             </ul>
           </div>
         </div>

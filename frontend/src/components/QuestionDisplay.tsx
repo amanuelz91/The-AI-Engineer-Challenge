@@ -5,10 +5,7 @@
  */
 
 import { useState } from "react";
-import {
-  HelpCircle,
-  RefreshCw,
-} from "lucide-react";
+import { HelpCircle, RefreshCw } from "lucide-react";
 
 export interface MultipleChoiceQuestion {
   question: string;
@@ -39,22 +36,26 @@ export function QuestionDisplay({
   onRegenerateQuestions,
   isRegenerating = false,
 }: QuestionDisplayProps) {
-  const [selectedAnswers, setSelectedAnswers] = useState<{[key: number]: number}>({});
-  const [showResults, setShowResults] = useState<{[key: number]: boolean}>({});
+  const [selectedAnswers, setSelectedAnswers] = useState<{
+    [key: number]: number;
+  }>({});
+  const [showResults, setShowResults] = useState<{ [key: number]: boolean }>(
+    {}
+  );
 
   if (!generatedQuestions) {
     return null;
   }
 
   const handleAnswerSelect = (questionIndex: number, answerIndex: number) => {
-    setSelectedAnswers(prev => ({
+    setSelectedAnswers((prev) => ({
       ...prev,
-      [questionIndex]: answerIndex
+      [questionIndex]: answerIndex,
     }));
-    
-    setShowResults(prev => ({
+
+    setShowResults((prev) => ({
       ...prev,
-      [questionIndex]: true
+      [questionIndex]: true,
     }));
   };
 
@@ -86,20 +87,20 @@ export function QuestionDisplay({
       <div className="bg-gray-50 rounded p-2">
         <div className="text-xs text-gray-600">
           <span className="font-medium">{generatedQuestions.topic}</span>
-          <span className={`ml-2 capitalize px-1 py-0.5 rounded text-xs ${
-            generatedQuestions.difficulty === "easy"
-              ? "bg-green-100 text-green-700"
-              : generatedQuestions.difficulty === "medium"
-              ? "bg-yellow-100 text-yellow-700"
-              : "bg-red-100 text-red-700"
-          }`}>
+          <span
+            className={`ml-2 capitalize px-1 py-0.5 rounded text-xs ${
+              generatedQuestions.difficulty === "easy"
+                ? "bg-green-100 text-green-700"
+                : generatedQuestions.difficulty === "medium"
+                ? "bg-yellow-100 text-yellow-700"
+                : "bg-red-100 text-red-700"
+            }`}
+          >
             {generatedQuestions.difficulty}
           </span>
         </div>
         {generatedQuestions.has_context && (
-          <div className="text-xs text-green-600 mt-1">
-            ✓ Using PDF context
-          </div>
+          <div className="text-xs text-green-600 mt-1">✓ Using PDF context</div>
         )}
       </div>
 
@@ -118,32 +119,38 @@ export function QuestionDisplay({
                 {question.question}
               </p>
             </div>
-            
+
             {/* Multiple Choice Options */}
             <div className="space-y-2 ml-6">
               {question.choices.map((choice, choiceIndex) => {
-                const isSelected = selectedAnswers[questionIndex] === choiceIndex;
+                const isSelected =
+                  selectedAnswers[questionIndex] === choiceIndex;
                 const isCorrect = choiceIndex === question.correct_answer;
                 const showResult = showResults[questionIndex];
-                
-                let buttonClass = "w-full text-left p-2 rounded text-xs border transition-colors ";
-                
+
+                let buttonClass =
+                  "w-full text-left p-2 rounded text-xs border transition-colors ";
+
                 if (showResult) {
                   if (isCorrect) {
-                    buttonClass += "bg-green-100 border-green-500 text-green-800";
+                    buttonClass +=
+                      "bg-green-100 border-green-500 text-green-800";
                   } else if (isSelected && !isCorrect) {
                     buttonClass += "bg-red-100 border-red-500 text-red-800";
                   } else {
                     buttonClass += "bg-gray-50 border-gray-300 text-gray-600";
                   }
                 } else {
-                  buttonClass += "border-gray-300 hover:bg-gray-50 text-gray-700";
+                  buttonClass +=
+                    "border-gray-300 hover:bg-gray-50 text-gray-700";
                 }
-                
+
                 return (
                   <button
                     key={choiceIndex}
-                    onClick={() => handleAnswerSelect(questionIndex, choiceIndex)}
+                    onClick={() =>
+                      handleAnswerSelect(questionIndex, choiceIndex)
+                    }
                     disabled={showResult}
                     className={buttonClass}
                   >
@@ -155,11 +162,12 @@ export function QuestionDisplay({
                 );
               })}
             </div>
-            
+
             {/* Explanation */}
             {showResults[questionIndex] && (
               <div className="ml-6 p-2 bg-blue-50 rounded text-xs text-blue-800">
-                <span className="font-medium">Explanation:</span> {question.explanation}
+                <span className="font-medium">Explanation:</span>{" "}
+                {question.explanation}
               </div>
             )}
           </div>

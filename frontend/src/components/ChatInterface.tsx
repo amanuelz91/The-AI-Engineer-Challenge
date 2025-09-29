@@ -10,7 +10,6 @@ import { ChatMessage } from "./ChatMessage";
 import { TypingIndicator } from "./TypingIndicator";
 import { PDFUpload } from "./PDFUpload";
 import { TopicSelector, QuestionConfig } from "./TopicSelector";
-import { QuestionDisplay, GeneratedQuestion } from "./QuestionDisplay";
 import { ChatApiService, QuestionGenerationRequest } from "@/services/chatApi";
 import { generateMessageId, storage } from "@/lib/utils";
 import { Send, Trash2, Settings, FileText } from "lucide-react";
@@ -31,8 +30,6 @@ export function ChatInterface() {
   const [showPDFUpload, setShowPDFUpload] = useState(false);
   const [uploadedPDFs, setUploadedPDFs] = useState<PDFListItem[]>([]);
   const [selectedPDFId, setSelectedPDFId] = useState<string | null>(null);
-  const [generatedQuestions, setGeneratedQuestions] =
-    useState<GeneratedQuestion | null>(null);
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -255,7 +252,25 @@ export function ChatInterface() {
       };
 
       const result = await ChatApiService.generateQuestions(request);
-      setGeneratedQuestions(result as GeneratedQuestion);
+      
+      // Add questions as a chat message
+      const questionsMessage: Message = {
+        id: generateMessageId(),
+        content: `Generated ${result.questions.length} questions about "${result.topic}"`,
+        role: "questions",
+        timestamp: new Date(),
+        questions: result.questions,
+        topic: result.topic,
+        difficulty: result.difficulty,
+        question_types: result.question_types,
+        has_context: result.has_context,
+        context_chunks_used: result.context_chunks_used,
+      };
+
+      setChatState((prev) => ({
+        ...prev,
+        messages: [...prev.messages, questionsMessage],
+      }));
     } catch (error) {
       console.error("Error generating questions:", error);
       alert(
@@ -268,15 +283,13 @@ export function ChatInterface() {
     }
   };
 
-  // Remove this function as we no longer need to ask questions in chat
-
-  const handleRegenerateQuestions = () => {
-    if (generatedQuestions) {
+  const handleRegenerateQuestions = (message: Message) => {
+    if (message.role === 'questions' && message.topic) {
       const config: QuestionConfig = {
-        topic: generatedQuestions.topic,
-        questionCount: generatedQuestions.questions.length,
-        difficulty: generatedQuestions.difficulty as "easy" | "medium" | "hard",
-        questionTypes: generatedQuestions.question_types,
+        topic: message.topic,
+        questionCount: message.questions?.length || 3,
+        difficulty: (message.difficulty as "easy" | "medium" | "hard") || "medium",
+        questionTypes: message.question_types || ["factual", "analytical"],
       };
       handleGenerateQuestions(config);
     }
@@ -323,7 +336,9 @@ export function ChatInterface() {
         {/* Settings Panel */}
         {showSettings && (
           <div className="bg-yellow-50 border-b border-yellow-200 px-6 py-4">
-            <h3 className="text-sm font-medium text-yellow-800 mb-3">Settings</h3>
+            <h3 className="text-sm font-medium text-yellow-800 mb-3">
+              Settings
+            </h3>
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-yellow-700 mb-1">
@@ -384,7 +399,8 @@ export function ChatInterface() {
                 <div className="text-4xl mb-4">📚</div>
                 <p className="text-lg font-medium mb-2">Welcome to RAG Chat!</p>
                 <p className="text-sm mb-4">
-                  Upload a PDF and chat with its contents using AI, or generate questions from topics on the right.
+                  Upload a PDF and chat with its contents using AI, or generate
+                  questions from topics on the right.
                 </p>
                 <div className="space-y-2 text-xs text-gray-600">
                   <p>1. Set your OpenAI API key in settings ⚙️</p>
@@ -406,7 +422,12 @@ export function ChatInterface() {
           ) : (
             <div className="max-w-4xl mx-auto">
               {chatState.messages.map((message) => (
-                <ChatMessage key={message.id} message={message} />
+                <ChatMessage 
+                  key={message.id} 
+                  message={message}
+                  onRegenerateQuestions={message.role === 'questions' ? () => handleRegenerateQuestions(message) : undefined}
+                  isRegenerating={isGeneratingQuestions}
+                />
               ))}
               {chatState.isTyping && <TypingIndicator />}
               <div ref={messagesEndRef} />
@@ -456,29 +477,21 @@ export function ChatInterface() {
         </div>
       </div>
 
-      {/* Right Sidebar - Topic Selector & Questions */}
+      {/* Right Sidebar - Topic Selector Only */}
       <div className="w-1/4 min-w-[320px] bg-white border-l border-gray-200 flex flex-col">
         <div className="p-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-800">Question Generator</h2>
+          <h2 className="text-lg font-semibold text-gray-800">
+            Question Generator
+          </h2>
         </div>
-        
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
+        <div className="flex-1 overflow-y-auto p-4">
           {/* Topic Selector */}
           <TopicSelector
             onTopicSelect={() => {}} // Just for interface, actual logic in onGenerateQuestions
             onGenerateQuestions={handleGenerateQuestions}
             isGenerating={isGeneratingQuestions}
           />
-          
-          {/* Generated Questions */}
-          {generatedQuestions && (
-            <QuestionDisplay
-              generatedQuestions={generatedQuestions}
-              onAskQuestion={() => {}} // Remove this functionality
-              onRegenerateQuestions={handleRegenerateQuestions}
-              isRegenerating={isGeneratingQuestions}
-            />
-          )}
         </div>
       </div>
     </div>
